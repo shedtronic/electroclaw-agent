@@ -26,6 +26,8 @@ sudo ln -s /home/makelab3/dev/electroclaw-agent/ec /usr/local/bin/ec
 ./ec ask -m llama3.2 "What is Ohm's law?"
 ./ec log
 ./ec log -n 50
+./ec mode
+./ec mode audio
 ./ec note "Checked enclosure fan after thermal run"
 ./ec notes
 ./ec notes -n 5
@@ -57,4 +59,10 @@ Session notes are written to:
 
 ```text
 ~/.local/state/electroclaw-agent/session.md
+```
+
+The current note mode is written to:
+
+```text
+~/.local/state/electroclaw-agent/mode.txt
 ```

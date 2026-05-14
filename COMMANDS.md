@@ -40,6 +40,14 @@ Show recent Ollama prompt/response log lines.
 ./ec log -n 20
 ```
 
+## mode
+
+Show or set the current note mode.
+
+```sh
+./ec mode audio
+```
+
 ## note
 
 Append a timestamped field note.

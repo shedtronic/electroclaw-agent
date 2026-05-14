@@ -21,7 +21,10 @@ LOG_DIR = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state"
 LOG_FILE = LOG_DIR / "electroclaw-agent" / "ec.log"
 FIELDNOTES_FILE = LOG_DIR / "electroclaw-agent" / "fieldnotes.md"
 SESSION_FILE = LOG_DIR / "electroclaw-agent" / "session.md"
-STATE_FILES = (LOG_FILE, FIELDNOTES_FILE, SESSION_FILE)
+MODE_FILE = LOG_DIR / "electroclaw-agent" / "mode.txt"
+STATE_FILES = (LOG_FILE, FIELDNOTES_FILE, SESSION_FILE, MODE_FILE)
+MODES = ("field", "audio", "system", "thinking", "archive")
+DEFAULT_MODE = "field"
 
 
 class OllamaError(RuntimeError):
@@ -141,6 +144,30 @@ def cmd_log(args: argparse.Namespace) -> int:
     return 0
 
 
+def current_mode() -> str:
+    if not MODE_FILE.exists():
+        MODE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        MODE_FILE.write_text(f"{DEFAULT_MODE}\n", encoding="utf-8")
+        return DEFAULT_MODE
+
+    mode = MODE_FILE.read_text(encoding="utf-8").strip()
+    if mode in MODES:
+        return mode
+    MODE_FILE.write_text(f"{DEFAULT_MODE}\n", encoding="utf-8")
+    return DEFAULT_MODE
+
+
+def cmd_mode(args: argparse.Namespace) -> int:
+    if args.mode is None:
+        print(current_mode())
+        return 0
+
+    MODE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    MODE_FILE.write_text(f"{args.mode}\n", encoding="utf-8")
+    print(args.mode)
+    return 0
+
+
 def cmd_init(_args: argparse.Namespace) -> int:
     print("Electroclaw readiness")
     ensure_state_files()
@@ -198,8 +225,9 @@ def cmd_note(args: argparse.Namespace) -> int:
 
     FIELDNOTES_FILE.parent.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().isoformat(timespec="seconds")
+    mode = current_mode()
     with FIELDNOTES_FILE.open("a", encoding="utf-8") as handle:
-        handle.write(f"- {timestamp} - {note}\n")
+        handle.write(f"- {timestamp} [{mode}] {note}\n")
 
     print(f"Added note: {FIELDNOTES_FILE}")
     return 0
@@ -370,6 +398,10 @@ def build_parser() -> argparse.ArgumentParser:
     log = subcommands.add_parser("log", help="show recent ec conversation log")
     log.add_argument("-n", "--lines", type=int, default=20, help="lines to show")
     log.set_defaults(func=cmd_log)
+
+    mode = subcommands.add_parser("mode", help="show or set the current note mode")
+    mode.add_argument("mode", nargs="?", choices=MODES, help="mode to set")
+    mode.set_defaults(func=cmd_mode)
 
     note = subcommands.add_parser("note", help="append a timestamped field note")
     note.add_argument("text", nargs="*", help="note text")
