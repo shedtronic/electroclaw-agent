@@ -26,6 +26,13 @@ MEMORY_FILE = LOG_DIR / "electroclaw-agent" / "memory.md"
 STATE_FILES = (LOG_FILE, FIELDNOTES_FILE, SESSION_FILE, MODE_FILE)
 MODES = ("field", "audio", "system", "thinking", "archive")
 DEFAULT_MODE = "field"
+MODE_INSTRUCTIONS = {
+    "audio": "You are assisting with audio, sound design, sonic practice, music, drones as sustained tones/textures, and field recording. Interpret 'drone' as an audio drone unless clearly stated otherwise.",
+    "system": "You are assisting with Raspberry Pi, Linux, shell work, lightweight diagnostics, repair, and system checks.",
+    "field": "You are assisting with field notes, observations, portability, local context, and practical making outside the studio.",
+    "thinking": "You are assisting with reflection, concise reasoning, careful distinctions, and clear next steps.",
+    "archive": "You are assisting with memory, traces, logs, fragments, durable notes, and useful retrieval.",
+}
 
 
 class OllamaError(RuntimeError):
@@ -117,12 +124,17 @@ def cmd_ask(args: argparse.Namespace) -> int:
         print("Nothing to ask. Pass a prompt after `ec ask`.", file=sys.stderr)
         return 2
 
+    mode = current_mode()
+    instruction = MODE_INSTRUCTIONS.get(mode, MODE_INSTRUCTIONS[DEFAULT_MODE])
+    if args.short:
+        instruction = f"{instruction} Answer briefly in 1-3 sentences."
+    ollama_prompt = f"{instruction}\n\nUser: {prompt}"
     payload = {
         "model": args.model or os.environ.get("EC_MODEL", DEFAULT_MODEL),
-        "prompt": prompt,
+        "prompt": ollama_prompt,
         "stream": False,
     }
-    data = request_json("/api/generate", payload=payload)
+    data = request_json("/api/generate", payload=payload, timeout=args.timeout)
     answer = data.get("response", "").strip()
 
     if not answer:
@@ -503,6 +515,8 @@ def build_parser() -> argparse.ArgumentParser:
     ask = subcommands.add_parser("ask", help="send a prompt to Ollama")
     ask.add_argument("prompt", nargs="*", help="prompt text")
     ask.add_argument("-m", "--model", help=f"model to use (default: {DEFAULT_MODEL})")
+    ask.add_argument("--short", action="store_true", help="answer briefly in 1-3 sentences")
+    ask.add_argument("--timeout", type=float, default=30, help="request timeout in seconds")
     ask.set_defaults(func=cmd_ask)
 
     init = subcommands.add_parser("init", help="run lightweight readiness checks")
