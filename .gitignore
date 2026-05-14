@@ -1,3 +1,22 @@
 __pycache__/
 *.pyc
 .venv/
+# local state / memory
+.local/
+*.log
+memory.md
+fieldnotes.md
+session.md
+mode.txt
+
+# generated audio
+*.wav
+*.mp3
+*.flac
+renders/
+
+
+# environment/secrets
+.env
+*.key
+id_ed25519*
