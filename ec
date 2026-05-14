@@ -364,6 +364,48 @@ def cmd_remember(_args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_identity(_args: argparse.Namespace) -> int:
+    memory = recent_file_lines(MEMORY_FILE, 40)
+    mode = current_mode()
+    _temp_code, temp = capture_vcgencmd("measure_temp")
+    _throttled_code, throttled = capture_vcgencmd("get_throttled")
+    temp_line, throttled_line = remember_thermal_lines(temp, throttled)
+
+    prompt = "\n".join(
+        [
+            "Write a short evolving identity statement for Electroclaw.",
+            "Use 3 to 5 concise plain-English sentences.",
+            "Electroclaw should describe itself as a portable Shedtronic field-dev and sonic practice node.",
+            "Emphasize local AI through Ollama, terminal-based making, sound experiments, audio drones, field notes, thermal awareness, repairability, low-power local-first backpackable computing, and being an artist tool rather than a corporate product.",
+            "Do not use these words or frames: cutting-edge, high-performance computing, industries, autonomous systems, industrial monitoring, innovation, innovative, startup, product launch, scalable, enterprise, disruptive, or market.",
+            "Tone: plain, slightly strange, practical, sonic, and maker-oriented.",
+            "Do not include a title or bullet list.",
+            "",
+            f"Current mode: {mode}",
+            "",
+            "Durable memory:",
+            "\n".join(memory) if memory else "No durable memory yet.",
+            "",
+            "Current thermals:",
+            temp_line,
+            throttled_line,
+        ]
+    )
+    payload = {
+        "model": os.environ.get("EC_MODEL", DEFAULT_MODEL),
+        "prompt": prompt,
+        "stream": False,
+    }
+    data = request_json("/api/generate", payload=payload)
+    identity = data.get("response", "").strip()
+
+    if not identity:
+        raise OllamaError("Ollama returned an empty identity statement")
+
+    print(identity)
+    return 0
+
+
 def append_session_line(line: str) -> None:
     SESSION_FILE.parent.mkdir(parents=True, exist_ok=True)
     with SESSION_FILE.open("a", encoding="utf-8") as handle:
@@ -465,6 +507,11 @@ def build_parser() -> argparse.ArgumentParser:
 
     init = subcommands.add_parser("init", help="run lightweight readiness checks")
     init.set_defaults(func=cmd_init)
+
+    identity = subcommands.add_parser(
+        "identity", help="generate a short evolving identity statement"
+    )
+    identity.set_defaults(func=cmd_identity)
 
     log = subcommands.add_parser("log", help="show recent ec conversation log")
     log.add_argument("-n", "--lines", type=int, default=20, help="lines to show")

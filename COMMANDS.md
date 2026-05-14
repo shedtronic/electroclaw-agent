@@ -32,6 +32,14 @@ Run lightweight Electroclaw readiness checks.
 ./ec init
 ```
 
+## identity
+
+Generate a short evolving identity statement from memory, mode, and thermals.
+
+```sh
+./ec identity
+```
+
 ## log
 
 Show recent Ollama prompt/response log lines.
