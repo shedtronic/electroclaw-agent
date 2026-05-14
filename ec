@@ -22,6 +22,7 @@ LOG_FILE = LOG_DIR / "electroclaw-agent" / "ec.log"
 FIELDNOTES_FILE = LOG_DIR / "electroclaw-agent" / "fieldnotes.md"
 SESSION_FILE = LOG_DIR / "electroclaw-agent" / "session.md"
 MODE_FILE = LOG_DIR / "electroclaw-agent" / "mode.txt"
+MEMORY_FILE = LOG_DIR / "electroclaw-agent" / "memory.md"
 STATE_FILES = (LOG_FILE, FIELDNOTES_FILE, SESSION_FILE, MODE_FILE)
 MODES = ("field", "audio", "system", "thinking", "archive")
 DEFAULT_MODE = "field"
@@ -256,6 +257,28 @@ def recent_file_lines(path: Path, count: int) -> list[str]:
     return lines[-count:]
 
 
+def parse_vcgencmd_value(line: str, key: str) -> str:
+    prefix = f"{key}="
+    if line.startswith(prefix):
+        return line.split("=", 1)[1].strip()
+    return ""
+
+
+def remember_thermal_lines(temp: str, throttled: str) -> tuple[str, str]:
+    temp_value = parse_vcgencmd_value(temp, "temp")
+    throttled_value = parse_vcgencmd_value(throttled, "throttled")
+
+    temp_line = f"Temperature: {temp_value}" if temp_value else f"Temperature: {temp}"
+    if throttled_value == "0x0":
+        throttled_line = "Throttling: no throttling"
+    elif throttled_value:
+        throttled_line = f"Throttling: {throttled_value}"
+    else:
+        throttled_line = f"Throttling: {throttled}"
+
+    return temp_line, throttled_line
+
+
 def cmd_summary(_args: argparse.Namespace) -> int:
     fieldnotes = recent_file_lines(FIELDNOTES_FILE, 12)
     session = recent_file_lines(SESSION_FILE, 20)
@@ -290,6 +313,54 @@ def cmd_summary(_args: argparse.Namespace) -> int:
         raise OllamaError("Ollama returned an empty summary")
 
     print(summary)
+    return 0
+
+
+def cmd_remember(_args: argparse.Namespace) -> int:
+    fieldnotes = recent_file_lines(FIELDNOTES_FILE, 20)
+    session = recent_file_lines(SESSION_FILE, 30)
+    mode = current_mode()
+    _temp_code, temp = capture_vcgencmd("measure_temp")
+    _throttled_code, throttled = capture_vcgencmd("get_throttled")
+    temp_line, throttled_line = remember_thermal_lines(temp, throttled)
+
+    prompt = "\n".join(
+        [
+            "Distil durable memory fragments for the Electroclaw agent.",
+            "Write 3 to 6 short Markdown bullets.",
+            "Keep only useful facts, preferences, open threads, and operating context.",
+            "Do not include filler or a title.",
+            "",
+            f"Current mode: {mode}",
+            "",
+            "Recent field notes:",
+            "\n".join(fieldnotes) if fieldnotes else "No field notes yet.",
+            "",
+            "Session log:",
+            "\n".join(session) if session else "No session entries yet.",
+            "",
+            "Current thermals:",
+            temp_line,
+            throttled_line,
+        ]
+    )
+    payload = {
+        "model": os.environ.get("EC_MODEL", DEFAULT_MODEL),
+        "prompt": prompt,
+        "stream": False,
+    }
+    data = request_json("/api/generate", payload=payload)
+    fragments = data.get("response", "").strip()
+
+    if not fragments:
+        raise OllamaError("Ollama returned empty memory fragments")
+
+    MEMORY_FILE.parent.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().isoformat(timespec="seconds")
+    with MEMORY_FILE.open("a", encoding="utf-8") as handle:
+        handle.write(f"\n## {timestamp} [{mode}]\n\n{fragments}\n")
+
+    print(f"Remembered: {MEMORY_FILE}")
     return 0
 
 
@@ -415,6 +486,11 @@ def build_parser() -> argparse.ArgumentParser:
         "summary", help="summarize recent notes, session entries, and thermals"
     )
     summary.set_defaults(func=cmd_summary)
+
+    remember = subcommands.add_parser(
+        "remember", help="distil recent notes and session context into memory"
+    )
+    remember.set_defaults(func=cmd_remember)
 
     session = subcommands.add_parser("session", help="session helper commands")
     session_subcommands = session.add_subparsers(

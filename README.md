@@ -31,6 +31,7 @@ sudo ln -s /home/makelab3/dev/electroclaw-agent/ec /usr/local/bin/ec
 ./ec note "Checked enclosure fan after thermal run"
 ./ec notes
 ./ec notes -n 5
+./ec remember
 ./ec summary
 ./ec session start
 ./ec session end
@@ -65,4 +66,10 @@ The current note mode is written to:
 
 ```text
 ~/.local/state/electroclaw-agent/mode.txt
+```
+
+Durable memory fragments are written to:
+
+```text
+~/.local/state/electroclaw-agent/memory.md
 ```

@@ -64,6 +64,14 @@ Show recent field notes.
 ./ec notes -n 5
 ```
 
+## remember
+
+Distil recent notes, session context, mode, and thermals into durable memory.
+
+```sh
+./ec remember
+```
+
 ## summary
 
 Summarize recent field notes, session entries, and current thermals.
