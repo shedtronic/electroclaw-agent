@@ -21,6 +21,7 @@ sudo ln -s /home/makelab3/dev/electroclaw-agent/ec /usr/local/bin/ec
 
 ```sh
 ./ec status
+./ec init
 ./ec ask "Write a short haiku about relays"
 ./ec ask -m llama3.2 "What is Ohm's law?"
 ./ec log

@@ -24,6 +24,14 @@ Send a prompt to the local Ollama model.
 ./ec ask "Give me a one-line status check."
 ```
 
+## init
+
+Run lightweight Electroclaw readiness checks.
+
+```sh
+./ec init
+```
+
 ## log
 
 Show recent Ollama prompt/response log lines.

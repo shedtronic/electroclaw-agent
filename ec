@@ -21,6 +21,7 @@ LOG_DIR = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state"
 LOG_FILE = LOG_DIR / "electroclaw-agent" / "ec.log"
 FIELDNOTES_FILE = LOG_DIR / "electroclaw-agent" / "fieldnotes.md"
 SESSION_FILE = LOG_DIR / "electroclaw-agent" / "session.md"
+STATE_FILES = (LOG_FILE, FIELDNOTES_FILE, SESSION_FILE)
 
 
 class OllamaError(RuntimeError):
@@ -61,6 +62,19 @@ def request_json(path: str, payload: dict | None = None, timeout: int = 120) -> 
         return json.loads(body)
     except json.JSONDecodeError as exc:
         raise OllamaError(f"Ollama returned invalid JSON: {body[:200]}") from exc
+
+
+def print_check(ok: bool, label: str, detail: str = "") -> None:
+    status = "ok" if ok else "warn"
+    suffix = f" - {detail}" if detail else ""
+    print(f"[{status}] {label}{suffix}")
+
+
+def ensure_state_files() -> None:
+    for path in STATE_FILES:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if not path.exists():
+            path.touch()
 
 
 def append_log(role: str, text: str) -> None:
@@ -124,6 +138,55 @@ def cmd_log(args: argparse.Namespace) -> int:
     lines = LOG_FILE.read_text(encoding="utf-8").splitlines()
     for line in lines[-args.lines :]:
         print(line)
+    return 0
+
+
+def cmd_init(_args: argparse.Namespace) -> int:
+    print("Electroclaw readiness")
+    ensure_state_files()
+
+    try:
+        data = request_json("/api/tags", timeout=10)
+    except OllamaError as exc:
+        print_check(False, "Ollama", str(exc))
+    else:
+        models = data.get("models", [])
+        print_check(True, "Ollama", os.environ.get("OLLAMA_HOST", DEFAULT_HOST))
+        if models:
+            names = ", ".join(model.get("name", "unknown") for model in models)
+            print_check(True, "Models", names)
+        else:
+            print_check(False, "Models", "none found")
+
+    temp_code, temp = capture_vcgencmd("measure_temp")
+    throttled_code, throttled = capture_vcgencmd("get_throttled")
+    print_check(temp_code == 0, "Temperature", temp)
+    print_check(throttled_code == 0, "Throttled", throttled)
+
+    repo_dir = Path(__file__).resolve().parent
+    git_dir = repo_dir / ".git"
+    if git_dir.exists():
+        result = subprocess.run(
+            ["git", "-C", str(repo_dir), "status", "--short"],
+            check=False,
+            text=True,
+            capture_output=True,
+        )
+        if result.returncode == 0:
+            clean = not result.stdout.strip()
+            detail = "clean" if clean else "changes present"
+            print_check(clean, "Git status", detail)
+        else:
+            detail = result.stderr.strip() or "git status failed"
+            print_check(False, "Git status", detail)
+    else:
+        print_check(False, "Git status", "not inside a git repo")
+
+    for path in STATE_FILES:
+        print_check(path.exists(), path.name, str(path))
+
+    executable = os.access(DRONE_SCRIPT, os.X_OK)
+    print_check(executable, "Audio drone script", str(DRONE_SCRIPT))
     return 0
 
 
@@ -300,6 +363,9 @@ def build_parser() -> argparse.ArgumentParser:
     ask.add_argument("prompt", nargs="*", help="prompt text")
     ask.add_argument("-m", "--model", help=f"model to use (default: {DEFAULT_MODEL})")
     ask.set_defaults(func=cmd_ask)
+
+    init = subcommands.add_parser("init", help="run lightweight readiness checks")
+    init.set_defaults(func=cmd_init)
 
     log = subcommands.add_parser("log", help="show recent ec conversation log")
     log.add_argument("-n", "--lines", type=int, default=20, help="lines to show")
