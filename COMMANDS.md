@@ -18,10 +18,18 @@ Check Ollama and list local models.
 
 ## ask
 
-Send a prompt to the local Ollama model.
+Send a fast, minimal prompt to the local Ollama model.
 
 ```sh
 ./ec ask "Give me a one-line status check."
+```
+
+## reflect
+
+Send a grounded, memory-aware prompt to the local Ollama model.
+
+```sh
+./ec reflect "What should I carry forward from this session?"
 ```
 
 ## init
@@ -53,7 +61,7 @@ Show recent Ollama prompt/response log lines.
 Show or set the current note mode.
 
 ```sh
-./ec mode audio
+./ec mode bench
 ```
 
 ## note

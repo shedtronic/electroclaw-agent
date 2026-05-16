@@ -81,11 +81,13 @@ Modes tag new field notes. They are not strict rules, just a small compass.
 ./ec mode system
 ./ec mode thinking
 ./ec mode archive
+./ec mode bench
 ```
 
 Use `field` when observing, `audio` when making sound, `system` when repairing or
 checking the machine, `thinking` when working through ideas, and `archive` when
-tidying memory.
+tidying memory. Use `bench` for SSH work, VS Code/Codex sessions, testing,
+maintenance, script making, git commits, and Raspberry Pi workshop practice.
 
 ## Session Ritual
 
@@ -107,6 +109,12 @@ Ask the local model small, useful questions:
 ```sh
 ./ec ask "Give me a quiet test plan for this audio patch."
 ./ec ask -m llama3.2:3b "Summarize these thermal notes in one paragraph."
+```
+
+Use `reflect` when you want the slower, memory-aware version:
+
+```sh
+./ec reflect "What thread should I carry forward from this session?"
 ```
 
 End the session:
@@ -219,10 +227,12 @@ The default model is `llama3.2:3b`.
 ./ec identity
 ./ec ask "Write a short haiku about relays"
 ./ec ask -m llama3.2:3b "What is Ohm's law?"
+./ec reflect "What should I remember from this work?"
 ./ec log
 ./ec log -n 50
 ./ec mode
 ./ec mode audio
+./ec mode bench
 ./ec note "Checked enclosure fan after thermal run"
 ./ec notes
 ./ec notes -n 5

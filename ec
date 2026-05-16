@@ -24,7 +24,7 @@ SESSION_FILE = LOG_DIR / "electroclaw-agent" / "session.md"
 MODE_FILE = LOG_DIR / "electroclaw-agent" / "mode.txt"
 MEMORY_FILE = LOG_DIR / "electroclaw-agent" / "memory.md"
 STATE_FILES = (LOG_FILE, FIELDNOTES_FILE, SESSION_FILE, MODE_FILE)
-MODES = ("field", "audio", "system", "thinking", "archive")
+MODES = ("field", "audio", "system", "thinking", "archive", "bench")
 DEFAULT_MODE = "field"
 MODE_INSTRUCTIONS = {
     "audio": "You are assisting with audio, sound design, sonic practice, music, drones as sustained tones/textures, and field recording. Interpret 'drone' as an audio drone unless clearly stated otherwise.",
@@ -32,6 +32,7 @@ MODE_INSTRUCTIONS = {
     "field": "You are assisting with field notes, observations, portability, local context, and practical making outside the studio.",
     "thinking": "You are assisting with reflection, concise reasoning, careful distinctions, and clear next steps.",
     "archive": "You are assisting with memory, traces, logs, fragments, durable notes, and useful retrieval.",
+    "bench": "You are assisting with SSH work, VS Code/Codex sessions, testing and iteration, maintenance, careful experimentation, git commits, script making, and Raspberry Pi workshop practice. Keep the tone practical, experimental, modest, and repair-oriented. Avoid corporate productivity language, generic software engineering jargon, and over-automation.",
 }
 ASK_GROUNDING = "Always prioritize Electroclaw as a Raspberry Pi field-dev node for local AI, sound practice, maker experimentation, repairability, and low-power workflows. Avoid pop culture references unless explicitly requested, superhero or villain analogies, generic productivity advice, corporate language, and startup or product marketing tone."
 
@@ -126,6 +127,45 @@ def cmd_ask(args: argparse.Namespace) -> int:
         return 2
 
     mode = current_mode()
+    instruction = (
+        f"Current mode: {mode}. Assume a Raspberry Pi terminal workflow for small "
+        "maker experiments, low-power local systems, sound experimentation, "
+        "repairability, and practical next steps. Avoid dangerous/high-voltage "
+        "advice, industrial testing language, enterprise engineering assumptions, "
+        "complex hardware lab scenarios, generic productivity coaching, and invented "
+        "context. Known capabilities: Ollama local AI, terminal workflow, ec ask "
+        "and reflect, thermals, session tracking, notes and memory, audio drone "
+        "rendering, Raspberry Pi system checks, and SSH/Codex workflow. When "
+        "suggesting next tests, prefer safe, small, observable experiments using "
+        "these existing capabilities unless the user explicitly mentions new hardware."
+    )
+    if args.short:
+        instruction = f"{instruction} Answer briefly in 1-3 sentences."
+    ollama_prompt = f"{instruction}\n\nUser: {prompt}"
+    payload = {
+        "model": args.model or os.environ.get("EC_MODEL", DEFAULT_MODEL),
+        "prompt": ollama_prompt,
+        "stream": False,
+    }
+    data = request_json("/api/generate", payload=payload, timeout=args.timeout)
+    answer = data.get("response", "").strip()
+
+    if not answer:
+        raise OllamaError("Ollama returned an empty response")
+
+    print(answer)
+    append_log("user", prompt)
+    append_log(payload["model"], answer)
+    return 0
+
+
+def cmd_reflect(args: argparse.Namespace) -> int:
+    prompt = " ".join(args.prompt).strip()
+    if not prompt:
+        print("Nothing to reflect on. Pass text after `ec reflect`.", file=sys.stderr)
+        return 2
+
+    mode = current_mode()
     instruction = MODE_INSTRUCTIONS.get(mode, MODE_INSTRUCTIONS[DEFAULT_MODE])
     if args.short:
         instruction = f"{instruction} Answer briefly in 1-3 sentences."
@@ -135,7 +175,7 @@ def cmd_ask(args: argparse.Namespace) -> int:
             instruction,
             ASK_GROUNDING,
             f"Current mode: {mode}",
-            f"Existing memory:\n{memory_text}",
+            f"Recent durable memory:\n{memory_text}",
             f"User: {prompt}",
         ]
     )
@@ -551,6 +591,13 @@ def build_parser() -> argparse.ArgumentParser:
     ask.add_argument("--short", action="store_true", help="answer briefly in 1-3 sentences")
     ask.add_argument("--timeout", type=float, default=60, help="request timeout in seconds")
     ask.set_defaults(func=cmd_ask)
+
+    reflect = subcommands.add_parser("reflect", help="send a grounded memory-aware prompt to Ollama")
+    reflect.add_argument("prompt", nargs="*", help="prompt text")
+    reflect.add_argument("-m", "--model", help=f"model to use (default: {DEFAULT_MODEL})")
+    reflect.add_argument("--short", action="store_true", help="answer briefly in 1-3 sentences")
+    reflect.add_argument("--timeout", type=float, default=60, help="request timeout in seconds")
+    reflect.set_defaults(func=cmd_reflect)
 
     init = subcommands.add_parser("init", help="run lightweight readiness checks")
     init.set_defaults(func=cmd_init)
