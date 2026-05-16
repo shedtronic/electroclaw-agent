@@ -1,32 +1,29 @@
 # Electroclaw Field Manual
 
 Electroclaw is a portable Shedtronic field-dev and sonic practice node. It is a
-small terminal tool for local AI, field notes, audio drones, thermal awareness,
-and remembering what happened while making things.
+terminal tool for local AI, field notes, audio drones, thermal awareness,
+session memory, and small maker experiments that can be understood over SSH.
 
-It is meant to be used over SSH on Raspberry Pi OS Lite. No web dashboard. No
-cloud service. No polished product voice. Just a backpackable machine, a shell,
-Ollama on `localhost:11434`, and a few state files that can be repaired with a
-text editor.
+It runs on Raspberry Pi OS Lite using Python standard library code, direct
+Ollama HTTP calls to `localhost:11434`, plain text state files, and local scripts.
+No dashboard, no cloud dependency, no smooth talking control room. Just the box,
+the shell, the hum, and a small set of habits.
 
-## Shape Of The Machine
+## Philosophy
 
-`ec` is a Python CLI that uses only the standard library. It talks directly to
-Ollama over HTTP, calls a local audio script for drone renders, and keeps its own
-notes under `~/.local/state/electroclaw-agent`.
+Electroclaw is:
 
-Electroclaw is good at:
+- local-first: the useful work happens on the Pi
+- low-power: prefer small tests over grand gestures
+- repairable: state is plain text, scripts are visible
+- terminal-based: SSH is a real workspace
+- maker-oriented: try, listen, inspect, adjust
+- sound focused: drones, textures, field notes, sonic practice
+- co-evolving: a workshop companion, not a generic assistant
 
-- local AI through Ollama
-- terminal-based making
-- sound experiments and audio drones
-- field notes, session notes, and durable memory fragments
-- checking its own thermals before the tiny box gets too warm
-- staying understandable enough to fix in the field
-
-Electroclaw should avoid becoming a glossy platform, a vague assistant, or a
-machine that hides its state. If it cannot be understood over SSH, it has drifted
-too far from the shed.
+It should stay practical, slightly strange, and modest. It should not pretend to
+be a corporate product or a giant lab. When in doubt, make a small observable
+test with the tools already on the machine.
 
 ## Install
 
@@ -72,22 +69,27 @@ Check heat and throttling:
 
 ## Working Modes
 
-Modes tag new field notes. They are not strict rules, just a small compass.
+Modes tag new field notes and influence `ec ask` and `ec reflect`. They are not
+strict rules, just a small compass.
 
 ```sh
 ./ec mode
+./ec mode bench
 ./ec mode field
 ./ec mode audio
-./ec mode system
 ./ec mode thinking
 ./ec mode archive
-./ec mode bench
+./ec mode system
 ```
 
-Use `field` when observing, `audio` when making sound, `system` when repairing or
-checking the machine, `thinking` when working through ideas, and `archive` when
-tidying memory. Use `bench` for SSH work, VS Code/Codex sessions, testing,
-maintenance, script making, git commits, and Raspberry Pi workshop practice.
+- `bench`: SSH work, VS Code/Codex sessions, testing, maintenance, commits,
+  script making, and Raspberry Pi workshop practice.
+- `field`: observations, portability, outside context, and notes from the room.
+- `audio`: sound design, sonic practice, music, field recording, and drones as
+  sustained tones or textures.
+- `thinking`: reflection, concise reasoning, distinctions, and next steps.
+- `archive`: memory, traces, logs, fragments, and useful retrieval.
+- `system`: Raspberry Pi, Linux, diagnostics, repair, and system checks.
 
 ## Session Ritual
 
@@ -109,9 +111,13 @@ Ask the local model small, useful questions:
 ```sh
 ./ec ask "Give me a quiet test plan for this audio patch."
 ./ec ask -m llama3.2:3b "Summarize these thermal notes in one paragraph."
+./ec ask --short "What should I check next?"
 ```
 
-Use `reflect` when you want the slower, memory-aware version:
+`ec ask` is fast, practical, and lightweight. It includes the current mode, but
+does not pull in memory. Use it when you want a quick nudge.
+
+Use `ec reflect` when you want the slower, memory-aware, contextual version:
 
 ```sh
 ./ec reflect "What thread should I carry forward from this session?"
@@ -149,6 +155,25 @@ The identity command reads memory, current mode, and thermals, then asks Ollama
 for a short statement of what Electroclaw is, what it is good at, and what it
 should avoid. It should sound plain, slightly strange, practical, sonic, and
 maker-oriented.
+
+## Bench Workflow
+
+A typical bench session looks like this:
+
+```sh
+./ec init
+./ec mode bench
+./ec session start
+./ec note "Testing a small change over SSH."
+./ec ask --short "What is the safest next check?"
+./ec reflect "What changed, and what should I carry forward?"
+./ec remember
+./ec session end
+```
+
+The pattern is simple: check the machine, set the mode, mark the session, make
+one small change, ask for the next observable test, reflect when needed, save the
+memory, close the loop.
 
 ## Sound Practice
 
@@ -219,7 +244,104 @@ export EC_MODEL=llama3.2:3b
 
 The default model is `llama3.2:3b`.
 
-## Command Reference
+## Commands
+
+### `ec init`
+
+Runs lightweight readiness checks: Ollama, available models, thermals, git
+status, state files, and the audio drone script.
+
+```sh
+./ec init
+```
+
+### `ec ask`
+
+Fast, practical, lightweight local AI. Uses current mode briefly and keeps the
+prompt small for Pi-friendly use.
+
+```sh
+./ec ask --short "What should I check next?"
+```
+
+### `ec reflect`
+
+Slower, memory-aware, contextual local AI. Uses mode, recent durable memory, and
+semantic grounding rules.
+
+```sh
+./ec reflect "What should I carry forward from this session?"
+```
+
+### `ec note` / `ec notes`
+
+Append and read mode-tagged field notes.
+
+```sh
+./ec note "Rendered a low drone and checked thermals."
+./ec notes -n 5
+```
+
+### `ec remember`
+
+Distils recent field notes, session notes, current mode, and thermals into
+durable memory fragments.
+
+```sh
+./ec remember
+```
+
+### `ec summary`
+
+Summarizes recent field notes, session notes, and current thermals.
+
+```sh
+./ec summary
+```
+
+### `ec session start` / `ec session end`
+
+Marks session boundaries. Ending a session records current thermals.
+
+```sh
+./ec session start
+./ec session end
+```
+
+### `ec mode`
+
+Shows or sets the current mode.
+
+```sh
+./ec mode
+./ec mode audio
+```
+
+### `ec thermals`
+
+Prints Raspberry Pi temperature and throttling state.
+
+```sh
+./ec thermals
+```
+
+### `ec identity`
+
+Generates a short evolving identity statement from memory, mode, and thermals.
+
+```sh
+./ec identity
+```
+
+### `ec audio drone`
+
+Renders an audio drone with frequency and duration.
+
+```sh
+./ec audio drone 110 5
+```
+
+## Quick Reference
 
 ```sh
 ./ec status
