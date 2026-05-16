@@ -33,6 +33,7 @@ MODE_INSTRUCTIONS = {
     "thinking": "You are assisting with reflection, concise reasoning, careful distinctions, and clear next steps.",
     "archive": "You are assisting with memory, traces, logs, fragments, durable notes, and useful retrieval.",
 }
+ASK_GROUNDING = "Always prioritize Electroclaw as a Raspberry Pi field-dev node for local AI, sound practice, maker experimentation, repairability, and low-power workflows. Avoid pop culture references unless explicitly requested, superhero or villain analogies, generic productivity advice, corporate language, and startup or product marketing tone."
 
 
 class OllamaError(RuntimeError):
@@ -128,7 +129,16 @@ def cmd_ask(args: argparse.Namespace) -> int:
     instruction = MODE_INSTRUCTIONS.get(mode, MODE_INSTRUCTIONS[DEFAULT_MODE])
     if args.short:
         instruction = f"{instruction} Answer briefly in 1-3 sentences."
-    ollama_prompt = f"{instruction}\n\nUser: {prompt}"
+    memory_text = ask_memory_context()
+    ollama_prompt = "\n\n".join(
+        [
+            instruction,
+            ASK_GROUNDING,
+            f"Current mode: {mode}",
+            f"Existing memory:\n{memory_text}",
+            f"User: {prompt}",
+        ]
+    )
     payload = {
         "model": args.model or os.environ.get("EC_MODEL", DEFAULT_MODEL),
         "prompt": ollama_prompt,
@@ -267,6 +277,29 @@ def recent_file_lines(path: Path, count: int) -> list[str]:
 
     lines = [line for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
     return lines[-count:]
+
+
+def ask_memory_context() -> str:
+    if not MEMORY_FILE.exists():
+        return "No durable memory yet."
+
+    lines = MEMORY_FILE.read_text(encoding="utf-8").splitlines()
+    start = 0
+    for index, line in enumerate(lines):
+        if line.startswith("## "):
+            start = index
+
+    section = [line for line in lines[start:] if line.strip()]
+    bullets = [
+        line
+        for line in section
+        if line.lstrip().startswith(("- ", "* "))
+    ]
+    if bullets:
+        return "\n".join(bullets[-3:])
+    if section:
+        return "\n".join(section)
+    return "No durable memory yet."
 
 
 def parse_vcgencmd_value(line: str, key: str) -> str:
@@ -516,7 +549,7 @@ def build_parser() -> argparse.ArgumentParser:
     ask.add_argument("prompt", nargs="*", help="prompt text")
     ask.add_argument("-m", "--model", help=f"model to use (default: {DEFAULT_MODEL})")
     ask.add_argument("--short", action="store_true", help="answer briefly in 1-3 sentences")
-    ask.add_argument("--timeout", type=float, default=30, help="request timeout in seconds")
+    ask.add_argument("--timeout", type=float, default=60, help="request timeout in seconds")
     ask.set_defaults(func=cmd_ask)
 
     init = subcommands.add_parser("init", help="run lightweight readiness checks")
