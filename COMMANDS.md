@@ -42,10 +42,12 @@ Run lightweight Electroclaw readiness checks.
 
 ## identity
 
-Generate a short evolving identity statement from memory, mode, and thermals.
+Generate a short evolving identity statement from the latest memory section,
+mode, and thermals.
 
 ```sh
 ./ec identity
+./ec identity --timeout 120
 ```
 
 ## log
@@ -90,10 +92,12 @@ Distil recent notes, session context, mode, and thermals into durable memory.
 
 ## summary
 
-Summarize recent field notes, session entries, and current thermals.
+Summarize the last few field notes, latest session block, current mode, and
+current thermals.
 
 ```sh
 ./ec summary
+./ec summary --timeout 120
 ```
 
 ## session start

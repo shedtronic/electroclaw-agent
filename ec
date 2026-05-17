@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import urllib.error
@@ -319,6 +320,96 @@ def recent_file_lines(path: Path, count: int) -> list[str]:
     return lines[-count:]
 
 
+def recent_file_tail_lines(path: Path, count: int) -> list[str]:
+    if not path.exists() or count <= 0:
+        return []
+
+    chunk_size = 4096
+    data = b""
+    with path.open("rb") as handle:
+        handle.seek(0, os.SEEK_END)
+        position = handle.tell()
+        lines: list[str] = []
+        while position > 0:
+            read_size = min(chunk_size, position)
+            position -= read_size
+            handle.seek(position)
+            data = handle.read(read_size) + data
+            lines = [
+                line
+                for line in data.decode("utf-8", errors="replace").splitlines()
+                if line.strip()
+            ]
+            if len(lines) >= count:
+                break
+
+    return lines[-count:]
+
+
+def recent_memory_sections(path: Path, count: int = 2) -> list[str]:
+    if not path.exists() or count <= 0:
+        return []
+
+    chunk_size = 8192
+    data = b""
+    with path.open("rb") as handle:
+        handle.seek(0, os.SEEK_END)
+        position = handle.tell()
+        while position > 0:
+            read_size = min(chunk_size, position)
+            position -= read_size
+            handle.seek(position)
+            data = handle.read(read_size) + data
+            text = data.decode("utf-8", errors="replace")
+            if len(re.findall(r"(?m)^## ", text)) >= count:
+                break
+
+    text = data.decode("utf-8", errors="replace")
+    headers = [match.start() for match in re.finditer(r"(?m)^## ", text)]
+    if headers:
+        text = text[headers[-count] :]
+
+    return [line for line in text.splitlines() if line.strip()]
+
+
+def recent_session_block(path: Path) -> list[str]:
+    if not path.exists():
+        return []
+
+    chunk_size = 4096
+    max_bytes = 16384
+    data = b""
+    with path.open("rb") as handle:
+        handle.seek(0, os.SEEK_END)
+        position = handle.tell()
+        while position > 0 and len(data) < max_bytes:
+            read_size = min(chunk_size, position, max_bytes - len(data))
+            position -= read_size
+            handle.seek(position)
+            data = handle.read(read_size) + data
+            lines = [
+                line
+                for line in data.decode("utf-8", errors="replace").splitlines()
+                if line.strip()
+            ]
+            if any(line.startswith("- start:") for line in lines):
+                break
+
+    lines = [
+        line
+        for line in data.decode("utf-8", errors="replace").splitlines()
+        if line.strip()
+    ]
+    starts = [index for index, line in enumerate(lines) if line.startswith("- start:")]
+    if starts:
+        return lines[starts[-1] :]
+
+    ends = [index for index, line in enumerate(lines) if line.startswith("- end:")]
+    if ends:
+        return lines[ends[-1] :]
+    return lines[-5:]
+
+
 def ask_memory_context() -> str:
     if not MEMORY_FILE.exists():
         return "No durable memory yet."
@@ -364,24 +455,27 @@ def remember_thermal_lines(temp: str, throttled: str) -> tuple[str, str]:
     return temp_line, throttled_line
 
 
-def cmd_summary(_args: argparse.Namespace) -> int:
-    fieldnotes = recent_file_lines(FIELDNOTES_FILE, 12)
-    session = recent_file_lines(SESSION_FILE, 20)
+def cmd_summary(args: argparse.Namespace) -> int:
+    fieldnotes = recent_file_tail_lines(FIELDNOTES_FILE, 5)
+    session = recent_session_block(SESSION_FILE)
+    mode = current_mode()
     _temp_code, temp = capture_vcgencmd("measure_temp")
     _throttled_code, throttled = capture_vcgencmd("get_throttled")
 
     prompt = "\n".join(
         [
-            "Write a short plain-English summary of the current Electroclaw session.",
-            "Keep it practical, concise, and under 120 words.",
+            "Summarize in max 3 bullets.",
+            "Be plain and practical.",
             "",
-            "Recent field notes:",
+            f"Mode: {mode}",
+            "",
+            "Field notes:",
             "\n".join(fieldnotes) if fieldnotes else "No field notes yet.",
             "",
-            "Session log:",
+            "Session:",
             "\n".join(session) if session else "No session entries yet.",
             "",
-            "Current thermals:",
+            "Thermals:",
             temp,
             throttled,
         ]
@@ -391,7 +485,7 @@ def cmd_summary(_args: argparse.Namespace) -> int:
         "prompt": prompt,
         "stream": False,
     }
-    data = request_json("/api/generate", payload=payload)
+    data = request_json("/api/generate", payload=payload, timeout=args.timeout)
     summary = data.get("response", "").strip()
 
     if not summary:
@@ -449,8 +543,8 @@ def cmd_remember(_args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_identity(_args: argparse.Namespace) -> int:
-    memory = recent_file_lines(MEMORY_FILE, 40)
+def cmd_identity(args: argparse.Namespace) -> int:
+    memory = recent_memory_sections(MEMORY_FILE, 1)
     mode = current_mode()
     _temp_code, temp = capture_vcgencmd("measure_temp")
     _throttled_code, throttled = capture_vcgencmd("get_throttled")
@@ -458,20 +552,17 @@ def cmd_identity(_args: argparse.Namespace) -> int:
 
     prompt = "\n".join(
         [
-            "Write a short evolving identity statement for Electroclaw.",
-            "Use 3 to 5 concise plain-English sentences.",
-            "Electroclaw should describe itself as a portable Shedtronic field-dev and sonic practice node.",
-            "Emphasize local AI through Ollama, terminal-based making, sound experiments, audio drones, field notes, thermal awareness, repairability, low-power local-first backpackable computing, and being an artist tool rather than a corporate product.",
-            "Do not use these words or frames: cutting-edge, high-performance computing, industries, autonomous systems, industrial monitoring, innovation, innovative, startup, product launch, scalable, enterprise, disruptive, or market.",
-            "Tone: plain, slightly strange, practical, sonic, and maker-oriented.",
-            "Do not include a title or bullet list.",
+            "Write Electroclaw's identity in 2-3 plain sentences.",
+            "It is a portable Shedtronic Raspberry Pi field-dev and sonic practice node.",
+            "Keep it local-first, repairable, low-power, maker-oriented, and a little strange.",
+            "Avoid corporate, startup, product, market, industry, innovation, enterprise, scalable, and high-performance language.",
             "",
-            f"Current mode: {mode}",
+            f"Mode: {mode}",
             "",
-            "Durable memory:",
+            "Memory:",
             "\n".join(memory) if memory else "No durable memory yet.",
             "",
-            "Current thermals:",
+            "Thermals:",
             temp_line,
             throttled_line,
         ]
@@ -481,7 +572,7 @@ def cmd_identity(_args: argparse.Namespace) -> int:
         "prompt": prompt,
         "stream": False,
     }
-    data = request_json("/api/generate", payload=payload)
+    data = request_json("/api/generate", payload=payload, timeout=args.timeout)
     identity = data.get("response", "").strip()
 
     if not identity:
@@ -605,6 +696,7 @@ def build_parser() -> argparse.ArgumentParser:
     identity = subcommands.add_parser(
         "identity", help="generate a short evolving identity statement"
     )
+    identity.add_argument("--timeout", type=float, default=60, help="request timeout in seconds")
     identity.set_defaults(func=cmd_identity)
 
     log = subcommands.add_parser("log", help="show recent ec conversation log")
@@ -626,6 +718,7 @@ def build_parser() -> argparse.ArgumentParser:
     summary = subcommands.add_parser(
         "summary", help="summarize recent notes, session entries, and thermals"
     )
+    summary.add_argument("--timeout", type=float, default=60, help="request timeout in seconds")
     summary.set_defaults(func=cmd_summary)
 
     remember = subcommands.add_parser(

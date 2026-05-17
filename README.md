@@ -137,6 +137,7 @@ Summarize the current session:
 
 ```sh
 ./ec summary
+./ec summary --timeout 120
 ```
 
 Distil recent field notes and session context into durable memory fragments:
@@ -149,12 +150,12 @@ Ask Electroclaw for its evolving identity:
 
 ```sh
 ./ec identity
+./ec identity --timeout 120
 ```
 
-The identity command reads memory, current mode, and thermals, then asks Ollama
-for a short statement of what Electroclaw is, what it is good at, and what it
-should avoid. It should sound plain, slightly strange, practical, sonic, and
-maker-oriented.
+The identity command reads the latest memory section, current mode, and
+thermals, then asks Ollama for a short statement. It should sound plain,
+slightly strange, practical, sonic, and maker-oriented.
 
 ## Bench Workflow
 
@@ -293,10 +294,12 @@ durable memory fragments.
 
 ### `ec summary`
 
-Summarizes recent field notes, session notes, and current thermals.
+Summarizes the last few field notes, latest session block, current mode, and
+current thermals.
 
 ```sh
 ./ec summary
+./ec summary --timeout 120
 ```
 
 ### `ec session start` / `ec session end`
@@ -327,10 +330,12 @@ Prints Raspberry Pi temperature and throttling state.
 
 ### `ec identity`
 
-Generates a short evolving identity statement from memory, mode, and thermals.
+Generates a short evolving identity statement from the latest memory section,
+mode, and thermals.
 
 ```sh
 ./ec identity
+./ec identity --timeout 120
 ```
 
 ### `ec audio drone`
